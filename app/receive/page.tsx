@@ -595,6 +595,15 @@ setState("completed");
                 }}
               />
             </div>
+
+            {state !== "completed" && (
+              <button
+                onClick={resetReceiver}
+                className="bg-red-600 px-4 py-3 rounded w-full mt-4"
+              >
+                Cancel Receive
+              </button>
+            )}
           </div>
 
           <div className="mt-4 max-h-40 overflow-y-auto rounded border p-2">
