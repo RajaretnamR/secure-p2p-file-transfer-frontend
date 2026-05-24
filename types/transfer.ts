@@ -16,6 +16,7 @@ export type ReceiverState =
   | "joining"
   | "peer-connecting"
   | "connected"
+  | "completed"
   | "failed";
 
 export interface IceCandidatePayload {

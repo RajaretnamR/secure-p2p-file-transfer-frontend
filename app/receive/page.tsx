@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-// import { Html5Qrcode } from "html5-qrcode";
+import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import { SignalingClient } from "@/lib/signalingClient";
@@ -30,6 +30,7 @@ function formatEta(seconds: number) {
 }
 
 export default function ReceivePage() {
+  const searchParams = useSearchParams();
   const [state, setState] = useState<ReceiverState>("idle");
   const [transferId, setTransferId] = useState("");
   const [statusText, setStatusText] =
@@ -125,8 +126,8 @@ const startScanner = async () => {
           setShowScanner(false);
 
           setTimeout(() => {
-            connectAndJoin();
-          }, 500);
+            connectAndJoin(code);
+          }, 300);
         } catch (err) {
           console.error(err);
         }
@@ -183,37 +184,60 @@ const resetReceiver = async () => {
   setIsVerified(null);
 };
 
+useEffect(() => {
+  const codeFromUrl =
+    searchParams.get("code");
 
-  const connectAndJoin = async () => {
-    if (!transferId.trim()) {
-      setStatusText("Transfer code required");
-      return;
-    }
+  if (!codeFromUrl) return;
 
-    transferIdRef.current = transferId;
+  if (
+    state !== "idle" ||
+    signalingRef.current ||
+    peerRef.current
+  ) {
+    return;
+  }
 
-    const signaling = new SignalingClient();
-    signalingRef.current = signaling;
+  connectAndJoin(codeFromUrl);
+}, [searchParams, state]);
 
-    try {
-      await signaling.connect(
-        handleServerMessage,
-        setWsConnected
-      );
 
-      setState("connecting");
-      setStatusText("Connected to signaling server");
+const connectAndJoin = async (
+  manualCode?: string
+) => {
+  const codeToUse =
+    manualCode || transferId.trim();
 
-      signaling.send({
-        type: "register",
-        role: "receiver",
-      });
-    } catch (err) {
-      console.error(err);
-      setState("failed");
-      setStatusText("Failed to connect");
-    }
-  };
+  if (!codeToUse) {
+    setStatusText("Transfer code required");
+    return;
+  }
+
+  transferIdRef.current = codeToUse;
+  setTransferId(codeToUse);
+
+  const signaling = new SignalingClient();
+  signalingRef.current = signaling;
+
+  try {
+    await signaling.connect(
+      handleServerMessage,
+      setWsConnected
+    );
+
+    setState("connecting");
+    setStatusText("Connected to signaling server");
+
+    signaling.send({
+      type: "register",
+      role: "receiver",
+    });
+  } catch (err) {
+    console.error(err);
+    setState("failed");
+    setStatusText("Failed to connect");
+  }
+};
 
   const handleControlMessage = async (
     message: DataChannelControlMessage
@@ -283,6 +307,7 @@ if (message.type === "transfer-complete") {
 
     if (calculatedHash !== file.sha256) {
       setIsVerified(false);
+      toast.error("Integrity failed");
       setState("failed");
       setStatusText(
         `Hash mismatch for ${file.fileName}`
@@ -298,39 +323,37 @@ if (message.type === "transfer-complete") {
     currentOffset += file.fileSize;
   }
 
-  setIsVerified(true);
+setIsVerified(true);
+toast.success("Files verified");
 
-        if (downloadedFiles.length === 1) {
-          const url = URL.createObjectURL(
-            downloadedFiles[0].blob
-          );
+if (downloadedFiles.length === 1) {
+  const url = URL.createObjectURL(
+    downloadedFiles[0].blob
+  );
 
-          setDownloadUrl(url);
-          setStatusText("File received successfully");
-        } else {
-          const JSZip = (await import("jszip")).default;
+  setDownloadUrl(url);
+  setStatusText("File received successfully");
+} else {
+  const JSZip = (await import("jszip")).default;
 
-          const zip = new JSZip();
+  const zip = new JSZip();
 
-          for (const file of downloadedFiles) {
-            zip.file(file.fileName, file.blob);
-          }
+  for (const file of downloadedFiles) {
+    zip.file(file.fileName, file.blob);
+  }
 
-          const zipBlob = await zip.generateAsync({
-            type: "blob",
-          });
+  const zipBlob = await zip.generateAsync({
+    type: "blob",
+  });
 
-          const zipUrl =
-            URL.createObjectURL(zipBlob);
+  const zipUrl =
+    URL.createObjectURL(zipBlob);
 
-          setDownloadUrl(zipUrl);
+  setDownloadUrl(zipUrl);
+  setStatusText("Files received successfully");
+}
 
-          setStatusText(
-            "Files received successfully"
-          );
-        }
-
-  setState("connected");
+setState("completed");
   return;
 }
   };
@@ -410,6 +433,8 @@ if (message.type === "transfer-complete") {
             if (connectionState === "connected") {
               setState("connected");
               setStatusText("CONNECTED");
+
+              toast.success("Connected to sender");
             }
           }
         );
@@ -457,154 +482,174 @@ if (message.type === "transfer-complete") {
     }
   };
 
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 bg-black text-white">
-      <h1 className="text-4xl font-bold">
-        Receiver
-      </h1>
+  <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 bg-black text-white">
+    <h1 className="text-4xl font-bold">
+      Receiver
+    </h1>
 
-      <div className="border border-gray-700 rounded-xl p-6 w-full max-w-md space-y-4">
-        <p>
-          <strong>Session:</strong>{" "}
-            {downloadUrl
-              ? "Completed"
-              : wsConnected
-              ? "Connected"
-              : "Disconnected"}
-        </p>
+    <div className="border border-gray-700 rounded-xl p-6 w-full max-w-md space-y-4">
+      <p>
+        <strong>Session:</strong>{" "}
+        {downloadUrl
+          ? "Completed"
+          : wsConnected
+          ? "Connected"
+          : "Disconnected"}
+      </p>
 
-        <p>
-          <strong>State:</strong> {state}
-        </p>
+      <p>
+        <strong>State:</strong> {state}
+      </p>
 
-        <p>
-          <strong>Status:</strong> {statusText}
-        </p>
+      <p>
+        <strong>Status:</strong> {statusText}
+      </p>
 
-        <input
-          type="text"
-          value={transferId}
-          onChange={(e) =>
-            setTransferId(e.target.value)
-          }
-          placeholder="Enter transfer code"
-          className="w-full p-3 rounded bg-black border border-gray-600"
-        />
+      {state !== "completed" && (
+        <>
+          <input
+            type="text"
+            value={transferId}
+            onChange={(e) =>
+              setTransferId(e.target.value)
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                connectAndJoin();
+              }
+            }}
+            placeholder="Enter transfer code"
+            className="w-full p-3 rounded bg-black border border-gray-600"
+          />
 
-        <button
-          onClick={connectAndJoin}
-          className="bg-green-600 px-4 py-3 rounded w-full"
-        >
-          Connect
-        </button>
+          <button
+            onClick={() => connectAndJoin()}
+            className="bg-green-600 px-4 py-3 rounded w-full"
+          >
+            Connect
+          </button>
 
-        <button
-          onClick={resetReceiver}
-          className="bg-yellow-600 px-4 py-3 rounded w-full mt-3"
-        >
-          Receive Another File
-        </button>
-
-        <button
+          <button
             onClick={startScanner}
-            className="bg-blue-600 px-4 py-2 rounded w-full mt-3"
+            className="bg-blue-600 px-4 py-3 rounded w-full"
           >
             Scan QR
-        </button>
+          </button>
+        </>
+      )}
 
-        {showScanner && (
-            <div className="mt-4 p-4 bg-gray-900 rounded-lg">
-              <div id="qr-reader"></div>
+      {showScanner && state !== "completed" && (
+        <div className="mt-4 p-4 bg-gray-900 rounded-lg">
+          <div id="qr-reader"></div>
 
-              <button
-                onClick={async () => {
-                  await stopScanner();
-                  setShowScanner(false);
-                }}
-                className="bg-red-600 px-4 py-2 rounded w-full mt-3"
-              >
-                Close Scanner
-              </button>
+          <button
+            onClick={async () => {
+              await stopScanner();
+              setShowScanner(false);
+            }}
+            className="bg-red-600 px-4 py-2 rounded w-full mt-3"
+          >
+            Close Scanner
+          </button>
+        </div>
+      )}
+
+      {incomingFile && (
+        <div className="space-y-2">
+          <p>
+            Files: {incomingFile.totalFiles}
+          </p>
+
+          <p>
+            Size:{" "}
+            {formatBytes(
+              incomingFile.totalTransferSize
+            )}{" "}
+            MB
+          </p>
+
+          <p>
+            Received:{" "}
+            {formatBytes(receivedBytes)} MB
+          </p>
+
+          <p>
+            Speed: {formatBytes(receiveSpeed)} MB/s
+          </p>
+
+          <p>ETA: {formatEta(etaSeconds)}</p>
+
+          <div className="mt-4">
+            <div className="flex justify-between text-sm mb-1">
+              <span>Progress</span>
+              <span>{receiveProgress.toFixed(1)}%</span>
             </div>
+
+            <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+              <div
+                className="bg-blue-500 h-4 transition-all duration-300"
+                style={{
+                  width: `${receiveProgress}%`,
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 max-h-40 overflow-y-auto rounded border p-2">
+            {incomingFile.files.map((file) => (
+              <div
+                key={`${file.fileName}-${file.fileSize}`}
+                className="text-sm"
+              >
+                {file.fileName} (
+                {formatBytes(file.fileSize)})
+              </div>
+            ))}
+          </div>
+
+          {isVerified === true && (
+            <p className="text-green-400 font-semibold">
+              SHA-256 Verified ✅
+            </p>
           )}
 
-        {incomingFile && (
-          <div className="space-y-2">
-            <p>
-              Files: {incomingFile.totalFiles}
+          {isVerified === false && (
+            <p className="text-red-400 font-semibold">
+              File Integrity Failed ❌
             </p>
+          )}
 
-            <p>
-              Size:{" "}
-             {formatBytes(
-                incomingFile.totalTransferSize
-              )}{" "}
-              MB
-            </p>
-
-            <p>
-              Received:{" "}
-              {formatBytes(receivedBytes)} MB
-            </p>
-
-            <p>
-              Speed: {formatBytes(receiveSpeed)} MB/s
-            </p>
-
-            <p>ETA: {formatEta(etaSeconds)}</p>
-
-            <div className="mt-4">
-              <div className="flex justify-between text-sm mb-1">
-                <span>Progress</span>
-                <span>{receiveProgress.toFixed(1)}%</span>
-              </div>
-
-              <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
-                <div
-                  className="bg-blue-500 h-4 transition-all duration-300"
-                  style={{ width: `${receiveProgress}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 max-h-40 overflow-y-auto rounded border p-2">
-                {incomingFile.files.map((file) => (
-                  <div
-                    key={`${file.fileName}-${file.fileSize}`}
-                    className="text-sm"
-                  >
-                    {file.fileName} (
-                    {formatBytes(file.fileSize)})
-                  </div>
-                ))}
-              </div>
-
-            {isVerified === true && (
-              <p className="text-green-400 font-semibold">
-                SHA-256 Verified ✅
-              </p>
-            )}
-
-            {isVerified === false && (
-              <p className="text-red-400 font-semibold">
-                File Integrity Failed ❌
-              </p>
-            )}
-
-            {downloadUrl && (
+          {state === "completed" &&
+            downloadUrl && (
               <a
                 href={downloadUrl}
-                download="received-file"
+                download={
+                  incomingFile.totalFiles > 1
+                    ? "received-files.zip"
+                    : "received-file"
+                }
                 className="block text-center bg-blue-600 px-4 py-3 rounded"
               >
-               {incomingFile.totalFiles > 1
-                ? "Download ZIP"
-                : "Download File"}
+                {incomingFile.totalFiles > 1
+                  ? "Download ZIP"
+                  : "Download File"}
               </a>
             )}
-          </div>
-        )}
-      </div>
+
+          {state === "completed" && (
+            <button
+              onClick={resetReceiver}
+              className="bg-green-600 px-4 py-3 rounded w-full"
+            >
+              Receive Another File
+            </button>
+          )}
+        </div>
+      )}
     </div>
-  );
+  </div>
+);
+
 }

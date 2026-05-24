@@ -74,6 +74,8 @@ const [selectedFiles, setSelectedFiles] =
   const peerRef =
     useRef<WebRTCPeer | null>(null);
 
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
   const transferIdRef = useRef("");
   const tokenRef = useRef("");
   const receiverIdRef = useRef("");
@@ -193,7 +195,7 @@ const [selectedFiles, setSelectedFiles] =
 
                 case "peer-disconnected":
             if (transferCompletedRef.current) {
-              toast.success("File sent successfully!");
+              toast.success("Transfer completed");
               break;
             }
 
@@ -246,13 +248,15 @@ const [selectedFiles, setSelectedFiles] =
         );
 
         if (
-          connectionState ===
-          "connected"
-        ) {
-          setState("connected");
-          setStatusText("CONNECTED");
-          return;
-        }
+  connectionState === "connected"
+) {
+  setState("connected");
+  setStatusText("CONNECTED");
+
+  toast.success("Receiver connected");
+
+  return;
+}
 
         if (
           connectionState ===
@@ -261,14 +265,14 @@ const [selectedFiles, setSelectedFiles] =
           if (
             transferCompletedRef.current
           ) {
-            toast.success("File sent successfully!");
+            toast.success("Transfer completed");
             return;
           }
 
-          setState("failed");
-          setStatusText(
-            "Connection lost"
-          );
+setState("failed");
+setStatusText("Connection lost");
+
+toast.error("Transfer failed");
           return;
         }
 
@@ -278,7 +282,7 @@ const [selectedFiles, setSelectedFiles] =
           if (
             transferCompletedRef.current
           ) {
-           toast.success("File sent successfully!");
+           toast.success("Transfer completed");
             return;
           }
 
@@ -286,6 +290,8 @@ const [selectedFiles, setSelectedFiles] =
           setStatusText(
             "Connection closed"
           );
+
+          toast.error("Transfer failed");
           return;
         }
 
@@ -295,12 +301,12 @@ const [selectedFiles, setSelectedFiles] =
           if (
             transferCompletedRef.current
           ) {
-            toast.success("File sent successfully!");
+           toast.success("Transfer completed");
             return;
           }
 
           setState("failed");
-          toast.error("Connection failed");
+          toast.error("Transfer failed");
         }
       }
     );
@@ -373,7 +379,7 @@ setSelectedFiles(Array.from(files));
 
   try {
     await navigator.clipboard.writeText(transferId);
-    toast.success("Transfer code copied!");
+    toast.success("Code copied");
   } catch (err) {
     console.error(err);
     setStatusText("Copy failed");
@@ -577,7 +583,7 @@ for (const file of selectedFiles) {
     setState("connected");
     // setState("completed"); 
 
-    toast.success("File sent successfully!");
+   toast.success("Transfer completed");
   };
 
   const handleDragOver = (
@@ -689,24 +695,23 @@ setSelectedFiles(files);
 
 
             <div
+            onClick={() => fileInputRef.current?.click()}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              onClick={() =>
-                document.getElementById("file-upload")?.click()
-              }
               className={`w-full mt-2 p-6 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all ${
                 isDragging
                   ? "border-green-400 bg-green-900/20"
                   : "border-gray-500 bg-gray-800"
               }`}
             >
-             <input
-                type="file"
-                multiple
-                onChange={handleFileSelect}
-                className="hidden"
-              />
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+            />
 
               <div className="text-4xl mb-2">📁</div>
 
@@ -784,18 +789,20 @@ setSelectedFiles(files);
         </div>
       )}
 
+        {!transferCompletedRef.current &&(
             <button
               onClick={sendFile}
               disabled={
                 !selectedFiles.length ||
                 isSending
               }
-              className="bg-green-600 px-4 py-2 rounded w-full"
+              className="bg-green-600 px-4 py-2 rounded w-full disabled:opacity-50"
             >
               {isSending
                 ? "Sending..."
                 : "Send File"}
             </button>
+          )}
 
             <button
               onClick={resetSender}
