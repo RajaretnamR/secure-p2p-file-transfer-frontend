@@ -185,33 +185,40 @@ const resetReceiver = async () => {
 };
 
 useEffect(() => {
-  const codeFromUrl =
-    searchParams.get("code");
+  const codeFromUrl = searchParams.get("code");
 
   if (!codeFromUrl) return;
-
-  if (
-    state !== "idle" ||
-    signalingRef.current ||
-    peerRef.current
-  ) {
-    return;
-  }
+  if (signalingRef.current) return;
 
   connectAndJoin(codeFromUrl);
-}, [searchParams, state]);
+}, [searchParams]);
 
 
 const connectAndJoin = async (
   manualCode?: string
 ) => {
-  const codeToUse =
-    manualCode || transferId.trim();
+  if (
+    state === "connecting" ||
+    state === "joining" ||
+    state === "peer-connecting" ||
+    state === "connected"
+  ) {
+    return;
+  }
+
+  const codeToUse = manualCode || transferId.trim();
 
   if (!codeToUse) {
     setStatusText("Transfer code required");
     return;
   }
+
+  // cleanup old connections
+  signalingRef.current?.disconnect();
+  signalingRef.current = null;
+
+  peerRef.current?.close();
+  peerRef.current = null;
 
   transferIdRef.current = codeToUse;
   setTransferId(codeToUse);
@@ -219,14 +226,14 @@ const connectAndJoin = async (
   const signaling = new SignalingClient();
   signalingRef.current = signaling;
 
+  setState("connecting");
+  setStatusText("Connecting to signaling server...");
+
   try {
     await signaling.connect(
       handleServerMessage,
       setWsConnected
     );
-
-    setState("connecting");
-    setStatusText("Connected to signaling server");
 
     signaling.send({
       type: "register",
@@ -525,7 +532,12 @@ setState("completed");
           />
 
           <button
-            onClick={() => connectAndJoin()}
+  disabled={
+    state === "connecting" ||
+    state === "joining" ||
+    state === "peer-connecting"
+  }
+  onClick={() => connectAndJoin()}
             className="bg-green-600 px-4 py-3 rounded w-full"
           >
             Connect

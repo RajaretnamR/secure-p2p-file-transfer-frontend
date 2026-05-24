@@ -56,21 +56,22 @@ export class SignalingClient {
         }
       };
 
-        this.ws.onerror = () => {
-        console.error("[WS] WebSocket connection failed");
-        reject(new Error("WebSocket connection failed"));
-        };
+this.ws.onerror = (err) => {
+  console.error("[WS] WebSocket error", err);
+};
 
-        this.ws.onclose = () => {
-          console.warn("[WS] Closed");
-          this.stopHeartbeat();
+this.ws.onclose = () => {
+  console.warn("[WS] Closed");
+  this.stopHeartbeat();
 
-          if (this.statusHandler) {
-            this.statusHandler(false);
-          }
+  if (this.statusHandler) {
+    this.statusHandler(false);
+  }
 
-          // TEMP FIX: disable auto reconnect
-        };
+  if (!this.manuallyClosed) {
+    this.scheduleReconnect();
+  }
+};
     });
   }
 
