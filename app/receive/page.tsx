@@ -68,18 +68,33 @@ const [incomingFile, setIncomingFile] =
   useRef<MultiFileMetadata | null>(null);
   const receivedBytesRef = useRef(0);
   const transferStartTimeRef = useRef(0);
+    const connectingRef = useRef(false);
+  const downloadUrlRef = useRef("");
 
 useEffect(() => {
   return () => {
-    stopScanner();
-    peerRef.current?.close();
-    signalingRef.current?.disconnect();
+    try {
+      stopScanner();
+    } catch (err) {
+      console.error("Scanner cleanup failed", err);
+    }
 
-    if (downloadUrl) {
-      URL.revokeObjectURL(downloadUrl);
+    if (peerRef.current) {
+      peerRef.current.close();
+      peerRef.current = null;
+    }
+
+    if (signalingRef.current) {
+      signalingRef.current.disconnect();
+      signalingRef.current = null;
+    }
+
+    if (downloadUrlRef.current) {
+      URL.revokeObjectURL(downloadUrlRef.current);
+      downloadUrlRef.current = "";
     }
   };
-}, [downloadUrl]);
+}, []);
 
 const stopScanner = async () => {
   try {
@@ -149,13 +164,14 @@ const resetReceiver = async () => {
     }
 
     if (signalingRef.current) {
-      signalingRef.current.close();
+      signalingRef.current.disconnect();
       signalingRef.current = null;
     }
 
-    if (downloadUrl) {
-      URL.revokeObjectURL(downloadUrl);
-    }
+ if (downloadUrlRef.current) {
+  URL.revokeObjectURL(downloadUrlRef.current);
+  downloadUrlRef.current = "";
+}
   } catch (err) {
     console.warn(err);
   }
@@ -187,22 +203,53 @@ const resetReceiver = async () => {
 useEffect(() => {
   const codeFromUrl = searchParams.get("code");
 
-  if (!codeFromUrl) return;
-  if (signalingRef.current) return;
+  if (!codeFromUrl) {
+    return;
+  }
 
-  connectAndJoin(codeFromUrl);
+  transferIdRef.current = codeFromUrl;
+  setTransferId(codeFromUrl);
+
+  const shouldReconnect =
+    !signalingRef.current ||
+    !wsConnected;
+
+  if (!shouldReconnect) {
+    return;
+  }
+
+  const initConnection = async () => {
+    try {
+      if (signalingRef.current) {
+        signalingRef.current.disconnect();
+        signalingRef.current = null;
+      }
+
+      if (peerRef.current) {
+        peerRef.current.close();
+        peerRef.current = null;
+      }
+
+      await connectAndJoin(codeFromUrl);
+
+    } catch (err) {
+      console.error("Receiver connect failed:", err);
+      setState("failed");
+      setStatusText("Failed to connect");
+    }
+  };
+
+  initConnection();
+
 }, [searchParams]);
+
+
 
 
 const connectAndJoin = async (
   manualCode?: string
 ) => {
-  if (
-    state === "connecting" ||
-    state === "joining" ||
-    state === "peer-connecting" ||
-    state === "connected"
-  ) {
+  if (connectingRef.current) {
     return;
   }
 
@@ -213,36 +260,65 @@ const connectAndJoin = async (
     return;
   }
 
-  // cleanup old connections
-  signalingRef.current?.disconnect();
-  signalingRef.current = null;
-
-  peerRef.current?.close();
-  peerRef.current = null;
-
-  transferIdRef.current = codeToUse;
-  setTransferId(codeToUse);
-
-  const signaling = new SignalingClient();
-  signalingRef.current = signaling;
-
-  setState("connecting");
-  setStatusText("Connecting to signaling server...");
+  connectingRef.current = true;
 
   try {
+    await stopScanner();
+
+    if (signalingRef.current) {
+      signalingRef.current.disconnect();
+      signalingRef.current = null;
+    }
+
+    if (peerRef.current) {
+      peerRef.current.close();
+      peerRef.current = null;
+    }
+
+    receivedChunksRef.current = [];
+    expectedFileRef.current = null;
+    receivedBytesRef.current = 0;
+    transferStartTimeRef.current = 0;
+
+    if (downloadUrlRef.current) {
+      URL.revokeObjectURL(downloadUrlRef.current);
+      downloadUrlRef.current = "";
+    }
+
+    setDownloadUrl("");
+    setWsConnected(false);
+
+    transferIdRef.current = codeToUse;
+    setTransferId(codeToUse);
+
+    const signaling = new SignalingClient();
+    signalingRef.current = signaling;
+
+    setState("connecting");
+    setStatusText("Connecting to signaling server...");
+
     await signaling.connect(
       handleServerMessage,
-      setWsConnected
+      (connected) => {
+        setWsConnected(connected);
+
+        if (!connected) {
+          setStatusText("Connection lost. Reconnecting...");
+        }
+      }
     );
 
     signaling.send({
       type: "register",
       role: "receiver",
     });
+
   } catch (err) {
     console.error(err);
     setState("failed");
     setStatusText("Failed to connect");
+  } finally {
+    connectingRef.current = false;
   }
 };
 
@@ -250,10 +326,11 @@ const connectAndJoin = async (
     message: DataChannelControlMessage
   ) => {
 if (message.type === "files-meta") {
-  if (downloadUrl) {
-    URL.revokeObjectURL(downloadUrl);
-    setDownloadUrl("");
-  }
+if (downloadUrlRef.current) {
+  URL.revokeObjectURL(downloadUrlRef.current);
+  downloadUrlRef.current = "";
+  setDownloadUrl("");
+}
 
   setIncomingFile(message.payload);
   expectedFileRef.current = message.payload;
@@ -338,7 +415,8 @@ if (downloadedFiles.length === 1) {
     downloadedFiles[0].blob
   );
 
-  setDownloadUrl(url);
+ downloadUrlRef.current = url;
+setDownloadUrl(url);
   setStatusText("File received successfully");
 } else {
   const JSZip = (await import("jszip")).default;
@@ -356,7 +434,8 @@ if (downloadedFiles.length === 1) {
   const zipUrl =
     URL.createObjectURL(zipBlob);
 
-  setDownloadUrl(zipUrl);
+  downloadUrlRef.current = zipUrl;
+setDownloadUrl(zipUrl);
   setStatusText("Files received successfully");
 }
 
@@ -403,13 +482,20 @@ setState("completed");
     }
   };
 
-  const handleServerMessage = async (
-    msg: VersionedServerMessage
-  ) => {
-    console.log("[SERVER]", msg);
+const handleServerMessage = async (
+  msg: VersionedServerMessage
+) => {
+  console.log("[SERVER]", msg);
 
+  try {
     switch (msg.type) {
-      case "registered":
+      case "registered": {
+        if (!transferIdRef.current) {
+          setState("failed");
+          setStatusText("Invalid transfer code");
+          return;
+        }
+
         signalingRef.current?.send({
           type: "join-session",
           transferId: transferIdRef.current,
@@ -418,8 +504,14 @@ setState("completed");
         setState("joining");
         setStatusText("Joining session...");
         break;
+      }
 
       case "session-joined": {
+        if (peerRef.current) {
+          peerRef.current.close();
+          peerRef.current = null;
+        }
+
         const peer = new WebRTCPeer(
           (candidate: IceCandidatePayload) => {
             signalingRef.current?.send({
@@ -427,8 +519,7 @@ setState("completed");
               transferId: transferIdRef.current,
               candidate: candidate.candidate,
               sdpMid: candidate.sdpMid,
-              sdpMLineIndex:
-                candidate.sdpMLineIndex,
+              sdpMLineIndex: candidate.sdpMLineIndex,
             });
           },
           (connectionState) => {
@@ -443,6 +534,15 @@ setState("completed");
 
               toast.success("Connected to sender");
             }
+
+            if (
+              connectionState === "failed" ||
+              connectionState === "disconnected" ||
+              connectionState === "closed"
+            ) {
+              setState("failed");
+              setStatusText("Peer connection lost");
+            }
           }
         );
 
@@ -452,16 +552,42 @@ setState("completed");
         );
 
         peerRef.current = peer;
+
         break;
       }
 
       case "relay-offer": {
-        if (!peerRef.current) return;
+        if (!peerRef.current) {
+          console.warn("Peer missing, creating fallback peer");
+
+          const peer = new WebRTCPeer(
+            (candidate: IceCandidatePayload) => {
+              signalingRef.current?.send({
+                type: "ice-candidate",
+                transferId: transferIdRef.current,
+                candidate: candidate.candidate,
+                sdpMid: candidate.sdpMid,
+                sdpMLineIndex: candidate.sdpMLineIndex,
+              });
+            },
+            (connectionState) => {
+              if (connectionState === "connected") {
+                setState("connected");
+                setStatusText("CONNECTED");
+              }
+            }
+          );
+
+          peer.setDataHandlers(
+            handleControlMessage,
+            handleBinaryChunk
+          );
+
+          peerRef.current = peer;
+        }
 
         const answer =
-          await peerRef.current.receiveOffer(
-            msg.sdp
-          );
+          await peerRef.current.receiveOffer(msg.sdp);
 
         signalingRef.current?.send({
           type: "answer",
@@ -471,23 +597,60 @@ setState("completed");
 
         setState("peer-connecting");
         setStatusText("Connecting peer...");
+
         break;
       }
 
-      case "relay-ice-candidate":
+      case "relay-ice-candidate": {
         await peerRef.current?.addIceCandidate({
           candidate: msg.candidate,
           sdpMid: msg.sdpMid,
           sdpMLineIndex: msg.sdpMLineIndex,
         });
         break;
+      }
 
-      case "error":
+      case "peer-disconnected": {
+        if (peerRef.current) {
+          peerRef.current.close();
+          peerRef.current = null;
+        }
+
+        setState("failed");
+        setStatusText("Sender disconnected");
+
+        toast.error("Sender disconnected");
+
+        break;
+      }
+
+      case "heartbeat-ack": {
+        break;
+      }
+
+      case "error": {
+        console.error("Server error:", msg.code, msg.message);
+
+        if (msg.code === "SESSION_EXPIRED") {
+          setState("failed");
+          setStatusText("Session expired");
+          break;
+        }
+
         setState("failed");
         setStatusText(msg.message);
         break;
+      }
+
+      default:
+        console.warn("Unhandled server message", msg);
     }
-  };
+  } catch (err) {
+    console.error("Receiver handler crash:", err);
+    setState("failed");
+    setStatusText("Unexpected client error");
+  }
+};
 
 
   return (

@@ -11,42 +11,72 @@ export class SignalingClient {
   private ws: WebSocket | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
+
   private messageHandler?: MessageHandler;
   private statusHandler?: StatusHandler;
+
   private manuallyClosed = false;
+  private isConnecting = false;
+  private destroyed = false;
 
   connect(
     onMessage: MessageHandler,
     onStatusChange?: StatusHandler
   ): Promise<void> {
+    if (this.destroyed) {
+      return Promise.reject(new Error("Client destroyed"));
+    }
+
+    if (this.isConnecting) {
+      return Promise.reject(new Error("Already connecting"));
+    }
+
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      return Promise.resolve();
+    }
+
+    this.cleanupSocket(false);
+
+    this.messageHandler = onMessage;
+    this.statusHandler = onStatusChange;
+    this.manuallyClosed = false;
+    this.isConnecting = true;
+
+    const wsUrl =
+      process.env.NEXT_PUBLIC_SIGNALING_WS_URL ||
+      "ws://127.0.0.1:8000/ws";
+
     return new Promise((resolve, reject) => {
-      const wsUrl =
-        process.env.NEXT_PUBLIC_SIGNALING_WS_URL ||
-        "ws://127.0.0.1:8000/ws";
+      const ws = new WebSocket(wsUrl);
+      this.ws = ws;
 
-      this.messageHandler = onMessage;
-      this.statusHandler = onStatusChange;
-      this.manuallyClosed = false;
+      let settled = false;
 
-      this.ws = new WebSocket(wsUrl);
-
-      this.ws.onopen = () => {
-        console.log("[WS] Connected");
-        this.startHeartbeat();
-
-        if (this.statusHandler) {
-          this.statusHandler(true);
+      ws.onopen = () => {
+        if (this.destroyed) {
+          ws.close();
+          return;
         }
 
+        console.log("[WS] Connected");
+
+        this.isConnecting = false;
+        this.startHeartbeat();
+
+        this.statusHandler?.(true);
+
+        settled = true;
         resolve();
       };
 
-      this.ws.onmessage = (event) => {
+      ws.onmessage = (event) => {
+        if (this.destroyed) return;
+
         try {
           const parsed = JSON.parse(event.data);
 
           if (!isVersionedServerMessage(parsed)) {
-            console.warn("[WS] Invalid message shape", parsed);
+            console.warn("[WS] Invalid message", parsed);
             return;
           }
 
@@ -56,56 +86,60 @@ export class SignalingClient {
         }
       };
 
-this.ws.onerror = (err) => {
-  console.error("[WS] WebSocket error", err);
-};
+      ws.onerror = (err) => {
+        console.error("[WS] Error", err);
 
-this.ws.onclose = () => {
-  console.warn("[WS] Closed");
-  this.stopHeartbeat();
+        if (!settled) {
+          settled = true;
+          this.isConnecting = false;
+          reject(new Error("WebSocket connection failed"));
+        }
+      };
 
-  if (this.statusHandler) {
-    this.statusHandler(false);
-  }
+      ws.onclose = () => {
+        console.warn("[WS] Closed");
 
-  if (!this.manuallyClosed) {
-    this.scheduleReconnect();
-  }
-};
+        this.isConnecting = false;
+        this.stopHeartbeat();
+        this.statusHandler?.(false);
+
+        this.ws = null;
+
+        if (
+          !this.manuallyClosed &&
+          !this.destroyed
+        ) {
+          this.scheduleReconnect();
+        }
+      };
     });
   }
 
   send(message: ClientMessage) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn("[WS] Cannot send, socket not open");
       return;
     }
 
-    console.log("[WS] Sending:", message);
-            this.ws.send(
-        JSON.stringify({
-            version: "1",
-            ...message,
-        })
-        );
+    this.ws.send(
+      JSON.stringify({
+        version: "1",
+        ...message,
+      })
+    );
   }
 
-        close() {
-        this.manuallyClosed = true;
-        this.stopHeartbeat();
-
-        if (this.reconnectTimer) {
-            clearTimeout(this.reconnectTimer);
-            this.reconnectTimer = null;
-        }
-
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
-        }
-        }
   disconnect() {
     this.manuallyClosed = true;
+    this.cleanupSocket(true);
+  }
+
+  destroy() {
+    this.destroyed = true;
+    this.manuallyClosed = true;
+    this.cleanupSocket(true);
+  }
+
+  private cleanupSocket(sendDisconnect: boolean) {
     this.stopHeartbeat();
 
     if (this.reconnectTimer) {
@@ -114,10 +148,26 @@ this.ws.onclose = () => {
     }
 
     if (this.ws) {
-      this.send({ type: "disconnect" });
-      this.ws.close();
+      try {
+        if (
+          sendDisconnect &&
+          this.ws.readyState === WebSocket.OPEN
+        ) {
+          this.send({ type: "disconnect" });
+        }
+
+        this.ws.onopen = null;
+        this.ws.onmessage = null;
+        this.ws.onerror = null;
+        this.ws.onclose = null;
+
+        this.ws.close();
+      } catch {}
+
       this.ws = null;
     }
+
+    this.isConnecting = false;
   }
 
   private startHeartbeat() {
@@ -138,18 +188,29 @@ this.ws.onclose = () => {
   }
 
   private scheduleReconnect() {
-    if (this.reconnectTimer) return;
+    if (
+      this.reconnectTimer ||
+      this.manuallyClosed ||
+      this.destroyed
+    ) {
+      return;
+    }
 
     console.log("[WS] Reconnecting in 3s...");
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
 
-      if (this.messageHandler) {
-        this.connect(this.messageHandler, this.statusHandler).catch((err) =>
-          console.error("[WS] Reconnect failed", err)
-        );
+      if (!this.messageHandler) {
+        return;
       }
+
+      this.connect(
+        this.messageHandler,
+        this.statusHandler
+      ).catch((err) => {
+        console.error("[WS] Reconnect failed", err);
+      });
     }, 3000);
   }
 }

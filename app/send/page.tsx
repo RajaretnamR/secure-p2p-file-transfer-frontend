@@ -84,51 +84,81 @@ const [selectedFiles, setSelectedFiles] =
   const transferCompletedRef = useRef(false);
   const isSendingRef = useRef(false);
 
-  useEffect(() => {
-    const signaling = new SignalingClient();
-    signalingRef.current = signaling;
+useEffect(() => {
+  cancelTransferRef.current = false;
 
-    signaling
-      .connect(handleServerMessage, setWsConnected)
-      .then(() => {
-        setState("connecting");
-        setStatusText(
-          "Connected to signaling server"
-        );
+  const signaling = new SignalingClient();
+  signalingRef.current = signaling;
 
-        signaling.send({
-          type: "register",
-          role: "sender",
-        });
-      })
-      .catch((err) => {
-        console.error(err);
-        setState("failed");
-        setStatusText("Failed to connect");
+  const connectSender = async () => {
+    try {
+      setState("connecting");
+      setStatusText("Connecting to signaling server...");
+
+      await signaling.connect(
+        handleServerMessage,
+        (connected) => {
+          setWsConnected(connected);
+
+          if (!connected) {
+            setStatusText("Connection lost. Reconnecting...");
+          }
+        }
+      );
+
+      signaling.send({
+        type: "register",
+        role: "sender",
       });
 
-    return () => {
-      cancelTransferRef.current = true;
+    } catch (err) {
+      console.error(err);
+      setState("failed");
+      setStatusText("Failed to connect");
+    }
+  };
 
-      peerRef.current?.close();
-      signaling.disconnect();
-    };
-  }, []);
+  connectSender();
 
-  const handleServerMessage = async (
-    msg: VersionedServerMessage
-  ) => {
-    console.log("[SERVER]", msg);
+  return () => {
+    cancelTransferRef.current = true;
 
+    if (peerRef.current) {
+      peerRef.current.close();
+      peerRef.current = null;
+    }
+
+    if (signalingRef.current) {
+      signalingRef.current.destroy();
+      signalingRef.current = null;
+    }
+  };
+}, []);
+
+const handleServerMessage = async (
+  msg: VersionedServerMessage
+) => {
+  console.log("[SERVER]", msg);
+
+  try {
     switch (msg.type) {
-      case "registered":
+      case "registered": {
         setState("registered");
         setStatusText("Sender registered");
+
+        // clear old session before creating fresh one
+        setTransferId("");
+        setQrCodeUrl("");
+        transferIdRef.current = "";
+        tokenRef.current = "";
+        receiverIdRef.current = "";
 
         signalingRef.current?.send({
           type: "create-session",
         });
+
         break;
+      }
 
       case "session-created": {
         setTransferId(msg.transferId);
@@ -136,94 +166,130 @@ const [selectedFiles, setSelectedFiles] =
         transferIdRef.current = msg.transferId;
         tokenRef.current = msg.token;
 
-        const qrData =
-          `${window.location.origin}/receive?code=${msg.transferId}`;
+        const qrData = `${window.location.origin}/receive?code=${msg.transferId}`;
 
-        const qrImage =
-          await QRCode.toDataURL(qrData);
-
-        setQrCodeUrl(qrImage);
+        try {
+          const qrImage = await QRCode.toDataURL(qrData);
+          setQrCodeUrl(qrImage);
+        } catch (err) {
+          console.error("QR generation failed", err);
+          setState("failed");
+          setStatusText("QR generation failed");
+          return;
+        }
 
         setState("waiting-receiver");
-        setStatusText(
-          "Waiting for receiver..."
-        );
+        setStatusText("Waiting for receiver...");
 
         break;
       }
 
-        case "join-request":
-          setReceiverId(msg.receiverId);
+      case "join-request": {
+        setReceiverId(msg.receiverId);
+        receiverIdRef.current = msg.receiverId;
 
-          receiverIdRef.current =
-            msg.receiverId;
+        setStatusText("Receiver requested to join");
 
-          setStatusText(
-            "Receiver requested to join"
-          );
-
-          break;
-
-           case "peer-joined":
-            console.log(
-              "Peer joined, starting connection"
-            );
-
-            if (peerRef.current) {
-              peerRef.current.close();
-              peerRef.current = null;
-            }
-
-            await startPeerConnection();
-
-            break;
-
-      case "relay-answer":
-        await peerRef.current?.receiveAnswer(
-          msg.sdp
-        );
         break;
+      }
 
-      case "relay-ice-candidate":
+      case "peer-joined": {
+        console.log("Peer joined, starting connection");
+
+        if (peerRef.current) {
+          peerRef.current.close();
+          peerRef.current = null;
+        }
+
+        await startPeerConnection();
+
+        break;
+      }
+
+      case "relay-answer": {
+        await peerRef.current?.receiveAnswer(msg.sdp);
+        break;
+      }
+
+      case "relay-ice-candidate": {
         await peerRef.current?.addIceCandidate({
           candidate: msg.candidate,
           sdpMid: msg.sdpMid,
-          sdpMLineIndex:
-            msg.sdpMLineIndex,
+          sdpMLineIndex: msg.sdpMLineIndex,
         });
         break;
+      }
 
-                case "peer-disconnected":
-            if (transferCompletedRef.current) {
-              toast.success("Transfer completed");
-              break;
-            }
+      case "peer-disconnected": {
+        if (transferCompletedRef.current) {
+          toast.success("Transfer completed");
+          break;
+        }
 
-            if (
-              state === "peer-connecting" ||
-              state === "waiting-receiver"
-            ) {
-              console.log(
-                "Ignoring disconnect during connection setup"
-              );
-              break;
-            }
+        if (isSendingRef.current) {
+          break;
+        }
 
-            if (!isSendingRef.current) {
-              setState("failed");
-              setStatusText(
-                "Receiver disconnected"
-              );
-            }
+        if (peerRef.current) {
+          peerRef.current.close();
+          peerRef.current = null;
+        }
 
-            break;
+        receiverIdRef.current = "";
 
-      case "error":
+        setState("waiting-receiver");
+        setStatusText("Receiver disconnected. Waiting for new receiver...");
+
+        break;
+      }
+
+      case "heartbeat-ack": {
+        break;
+      }
+
+      case "error": {
+        console.error("Server error:", msg.code, msg.message);
+
+      if (msg.code === "SESSION_EXPIRED") {
+        transferIdRef.current = "";
+        tokenRef.current = "";
+        receiverIdRef.current = "";
+
+        setTransferId("");
+        setQrCodeUrl("");
+
+        setStatusText("Session expired. Recreating session...");
+
+        signalingRef.current?.send({
+          type: "create-session",
+        });
+
+        break;
+      }
+
+        if (
+          msg.code === "ALREADY_REGISTERED" &&
+          msg.message.includes("already registered")
+        ) {
+          console.warn("Ignoring already registered");
+          break;
+        }
+
         setState("failed");
         setStatusText(msg.message);
+
         break;
+      }
+
+      default:
+        console.warn("Unhandled server message", msg);
     }
-  };
+  } catch (err) {
+    console.error("handleServerMessage crash:", err);
+    setState("failed");
+    setStatusText("Unexpected client error");
+  }
+};
 
   const startPeerConnection = async () => {
     const peer = new WebRTCPeer(
@@ -386,7 +452,7 @@ setSelectedFiles(Array.from(files));
   }
 };
 
-  const resetSender = async () => {
+const resetSender = async () => {
   try {
     if (peerRef.current) {
       peerRef.current.close();
@@ -394,7 +460,7 @@ setSelectedFiles(Array.from(files));
     }
 
     if (signalingRef.current) {
-      signalingRef.current.close();
+      signalingRef.current.destroy();
       signalingRef.current = null;
     }
   } catch (err) {
@@ -403,13 +469,17 @@ setSelectedFiles(Array.from(files));
 
   transferCompletedRef.current = false;
   transferIdRef.current = "";
+  tokenRef.current = "";
+  receiverIdRef.current = "";
+  isSendingRef.current = false;
+  cancelTransferRef.current = false;
 
   setState("idle");
   setTransferId("");
   setStatusText("Ready");
+  setQrCodeUrl("");
 
- setSelectedFiles([]);
-
+  setSelectedFiles([]);
   setTransferProgress(0);
   setBytesSent(0);
   setTransferSpeed(0);
@@ -421,19 +491,21 @@ setSelectedFiles(Array.from(files));
   signalingRef.current = signaling;
 
   try {
-    await signaling.connect(handleServerMessage, setWsConnected);
+    await signaling.connect(
+      handleServerMessage,
+      setWsConnected
+    );
 
     signaling.send({
       type: "register",
       role: "sender",
     });
 
-    signaling.send({
-      type: "create-session",
-    });
   } catch (err) {
     console.error(err);
     toast.error("Reconnect failed");
+    setState("failed");
+    setStatusText("Reconnect failed");
   }
 };
 
