@@ -386,7 +386,7 @@ setSelectedFiles(Array.from(files));
   }
 };
 
-const resetSender = async () => {
+  const resetSender = async () => {
   try {
     if (peerRef.current) {
       peerRef.current.close();
@@ -394,15 +394,12 @@ const resetSender = async () => {
     }
 
     if (signalingRef.current) {
-      signalingRef.current.disconnect();   // FIX
+      signalingRef.current.close();
       signalingRef.current = null;
     }
   } catch (err) {
     console.warn(err);
   }
-
-  // wait backend cleanup
-  await new Promise((resolve) => setTimeout(resolve, 500));
 
   transferCompletedRef.current = false;
   transferIdRef.current = "";
@@ -410,7 +407,8 @@ const resetSender = async () => {
   setState("idle");
   setTransferId("");
   setStatusText("Ready");
-  setSelectedFiles([]);
+
+ setSelectedFiles([]);
 
   setTransferProgress(0);
   setBytesSent(0);
