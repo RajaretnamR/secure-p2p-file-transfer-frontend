@@ -692,211 +692,405 @@ setSelectedFiles(files);
 };
 
   
+return (
+  <div className="min-h-screen relative overflow-hidden bg-black text-white">
+    {/* Background Glow */}
+    <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute top-[-120px] left-[-120px] h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl" />
+      <div className="absolute top-[20%] right-[-100px] h-96 w-96 rounded-full bg-purple-500/10 blur-3xl" />
+      <div className="absolute bottom-[-120px] left-[35%] h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
+    </div>
 
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 bg-black text-white">
-      <h1 className="text-4xl font-bold">
-        Sender
-      </h1>
-
-      <div className="border border-gray-700 rounded-xl p-6 w-full max-w-md space-y-4">
-        <p>
-          <strong>WebSocket:</strong>{" "}
-          {wsConnected
-            ? "Connected"
-            : "Disconnected"}
-        </p>
-
-        <p>
-          <strong>State:</strong>{" "}
-          {transferProgress === 100
-            ? "completed"
-            : state}
-        </p>
-
-        <p>
-          <strong>Status:</strong>{" "}
-          {statusText}
-        </p>
-
-        {transferId && (
-          <div className="flex items-center justify-between gap-3">
-              <p>
-                <strong>Transfer Code:</strong> {transferId}
-              </p>
-
-              <button
-                onClick={copyTransferCode}
-                className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm"
-              >
-                📋 Copy
-              </button>
+    <div className="relative z-10 container mx-auto px-6 py-8">
+      
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-10">
+        <div>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-xl mb-5">
+            <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-sm font-medium text-white/90">
+              Sender Workspace Active
+            </span>
           </div>
-        )}
 
-        {qrCodeUrl && (
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-sm text-gray-300">
-              Scan QR to join
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tight leading-tight">
+            Secure File
+            <span className="block bg-gradient-to-r from-cyan-300 via-white to-purple-300 bg-clip-text text-transparent">
+              Transfer Dashboard
+            </span>
+          </h1>
+
+          <p className="mt-5 text-lg text-gray-400 max-w-3xl leading-relaxed">
+            Transfer files directly between devices using secure peer-to-peer
+            connection with QR pairing, integrity verification, and real-time transfer analytics.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full md:w-auto">
+          <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl px-5 py-5 min-w-[180px]">
+            <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+              WebSocket
             </p>
-
-            <img
-              src={qrCodeUrl}
-              alt="Transfer QR"
-              className="w-48 h-48 bg-white p-2 rounded"
-            />
-          </div>
-        )}
-
-        {receiverId &&
-          state ===
-            "waiting-receiver" && (
-            <button
-              onClick={
-                approveReceiver
-              }
-              className="bg-blue-600 px-4 py-2 rounded w-full"
-            >
-              Approve Receiver
-            </button>
-          )}
-
-        {state === "connected" && (
-          <>
-
-
-
-            <div
-            onClick={() => fileInputRef.current?.click()}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className={`w-full mt-2 p-6 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all ${
-                isDragging
-                  ? "border-green-400 bg-green-900/20"
-                  : "border-gray-500 bg-gray-800"
+            <p
+              className={`text-lg font-semibold ${
+                wsConnected ? "text-green-400" : "text-red-400"
               }`}
             >
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-
-              <div className="text-4xl mb-2">📁</div>
-
-              <p className="font-semibold">
-                {isDragging
-                  ? "Drop file here"
-                  : "Drag & Drop file here"}
-              </p>
-
-              <p className="text-sm text-gray-400 mt-1">
-                or click to browse
-              </p>
-            </div>
-
-
-
-
-      {selectedFiles.length > 0 && (
-        <div className="space-y-2">
-          <p>
-            Files: {selectedFiles.length}
-          </p>
-
-          <p>
-            Total Size:{" "}
-            {formatBytes(
-              selectedFiles.reduce(
-                (sum, file) => sum + file.size,
-                0
-              )
-            )}
-          </p>
-
-          <p>
-            Sent: {formatBytes(bytesSent)}
-          </p>
-
-          <p>
-            Speed: {formatBytes(transferSpeed)}/s
-          </p>
-
-          <p>
-            ETA: {formatEta(etaSeconds)}
-          </p>
-
-          <div className="mt-4">
-            <div className="flex justify-between text-sm mb-1">
-              <span>Progress</span>
-              <span>
-                {transferProgress.toFixed(1)}%
-              </span>
-            </div>
-
-            <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
-              <div
-                className="bg-green-500 h-4 transition-all duration-300"
-                style={{
-                  width: `${transferProgress}%`,
-                }}
-              />
-            </div>
+              {wsConnected ? "Connected" : "Disconnected"}
+            </p>
           </div>
 
-          <div className="max-h-40 overflow-y-auto rounded border p-2">
-            {selectedFiles.map((file) => (
-              <div
-                key={`${file.name}-${file.size}`}
-                className="text-sm"
-              >
-                {file.name} (
-                {formatBytes(file.size)})
-              </div>
-            ))}
+          <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl px-5 py-5 min-w-[180px]">
+            <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+              Session State
+            </p>
+            <p className="text-lg font-semibold text-cyan-300">
+              {transferProgress === 100 ? "completed" : state}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl px-5 py-5 min-w-[180px]">
+            <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+              Status
+            </p>
+            <p className="text-sm font-medium text-white/90 leading-relaxed">
+              {statusText}
+            </p>
           </div>
         </div>
-      )}
+      </div>
 
-        {!transferCompletedRef.current &&(
+      {/* Pairing Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+
+        {/* Transfer Code Card */}
+        <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-2xl p-8 shadow-2xl">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+                Pairing Session
+              </p>
+              <h2 className="text-2xl font-bold">
+                Device Connection
+              </h2>
+            </div>
+
+            <div className="h-14 w-14 rounded-2xl bg-cyan-500/10 border border-cyan-400/20 flex items-center justify-center text-2xl">
+              🔐
+            </div>
+          </div>
+
+          {transferId && (
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-5 mb-5">
+              <p className="text-sm text-gray-400 mb-2">
+                Transfer Code
+              </p>
+
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <p className="text-2xl font-bold tracking-[0.25em] text-cyan-300 break-all">
+                  {transferId}
+                </p>
+
+                <button
+                  onClick={copyTransferCode}
+                  className="px-5 py-3 rounded-2xl bg-white text-black font-semibold hover:scale-105 transition-all duration-300"
+                >
+                  Copy Code
+                </button>
+              </div>
+            </div>
+          )}
+
+          {receiverId && state === "waiting-receiver" && (
             <button
-              onClick={sendFile}
-              disabled={
-                !selectedFiles.length ||
-                isSending
-              }
-              className="bg-green-600 px-4 py-2 rounded w-full disabled:opacity-50"
+              onClick={approveReceiver}
+              className="w-full mt-4 px-6 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 font-semibold text-white hover:scale-[1.02] transition-all duration-300"
             >
-              {isSending
-                ? "Sending..."
-                : "Send File"}
+              Approve Receiver Connection
             </button>
           )}
+        </div>
+
+        {/* QR Section */}
+        <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-2xl p-8 shadow-2xl">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+                QR Pairing
+              </p>
+              <h2 className="text-2xl font-bold">
+                Scan To Connect
+              </h2>
+            </div>
+
+            <div className="h-14 w-14 rounded-2xl bg-purple-500/10 border border-purple-400/20 flex items-center justify-center text-2xl">
+              📱
+            </div>
+          </div>
+
+          {qrCodeUrl && (
+            <div className="flex flex-col items-center justify-center rounded-3xl border border-white/10 bg-black/30 p-8">
+              <p className="text-sm text-gray-400 mb-5">
+                Receiver can scan this QR to join instantly
+              </p>
+
+              <img
+                src={qrCodeUrl}
+                alt="Transfer QR"
+                className="w-64 h-64 bg-white p-4 rounded-3xl shadow-2xl"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+            {/* Connected Transfer Workspace */}
+      {state === "connected" && (
+        <>
+          {/* Upload + Analytics */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-10">
+
+            {/* Upload Zone */}
+            <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-2xl p-8 shadow-2xl">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+                    Upload Workspace
+                  </p>
+                  <h2 className="text-2xl font-bold">
+                    Select Files To Transfer
+                  </h2>
+                </div>
+
+                <div className="h-14 w-14 rounded-2xl bg-blue-500/10 border border-blue-400/20 flex items-center justify-center text-2xl">
+                  📂
+                </div>
+              </div>
+
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`w-full rounded-3xl border-2 border-dashed p-14 text-center cursor-pointer transition-all duration-300 ${
+                  isDragging
+                    ? "border-green-400 bg-green-500/10 scale-[1.01]"
+                    : "border-white/20 bg-black/30 hover:border-cyan-400/40 hover:bg-white/5"
+                }`}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+
+                <div className="text-6xl mb-5">
+                  {isDragging ? "📥" : "📁"}
+                </div>
+
+                <p className="text-2xl font-semibold">
+                  {isDragging
+                    ? "Drop files here"
+                    : "Drag & Drop files here"}
+                </p>
+
+                <p className="text-gray-400 mt-3 text-base">
+                  or click to browse from your device
+                </p>
+
+                <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10">
+                  <span className="text-sm text-gray-300">
+                    Multi-file transfer supported
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Analytics */}
+            <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-2xl p-8 shadow-2xl">
+              <div className="mb-6">
+                <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+                  Live Analytics
+                </p>
+                <h2 className="text-2xl font-bold">
+                  Transfer Metrics
+                </h2>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
+                  <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+                    Files
+                  </p>
+                  <p className="text-3xl font-bold text-cyan-300">
+                    {selectedFiles.length}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
+                  <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+                    Total Size
+                  </p>
+                  <p className="text-xl font-bold text-white">
+                    {formatBytes(
+                      selectedFiles.reduce(
+                        (sum, file) => sum + file.size,
+                        0
+                      )
+                    )}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
+                  <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+                    Sent
+                  </p>
+                  <p className="text-xl font-bold text-green-400">
+                    {formatBytes(bytesSent)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
+                  <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+                    Speed
+                  </p>
+                  <p className="text-xl font-bold text-purple-300">
+                    {formatBytes(transferSpeed)}/s
+                  </p>
+                </div>
+
+                <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-black/30 p-5">
+                  <p className="text-xs text-gray-400 uppercase tracking-widest mb-2">
+                    Estimated Time Remaining
+                  </p>
+                  <p className="text-2xl font-bold text-yellow-300">
+                    {formatEta(etaSeconds)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* File Details + Progress */}
+          {selectedFiles.length > 0 && (
+            <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-2xl p-8 shadow-2xl mb-10">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+                    Transfer Progress
+                  </p>
+                  <h2 className="text-2xl font-bold">
+                    Real-Time Transfer Tracking
+                  </h2>
+                </div>
+
+                <div className="text-right">
+                  <p className="text-sm text-gray-400">
+                    Completion
+                  </p>
+                  <p className="text-4xl font-bold text-cyan-300">
+                    {transferProgress.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+
+              <div className="w-full h-6 rounded-full bg-black/40 overflow-hidden border border-white/10 mb-8">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 transition-all duration-300"
+                  style={{
+                    width: `${transferProgress}%`,
+                  }}
+                />
+              </div>
+
+              <div>
+                <p className="text-lg font-semibold mb-5">
+                  Selected Files
+                </p>
+
+                <div className="max-h-80 overflow-y-auto rounded-3xl border border-white/10 bg-black/30 p-5 space-y-3">
+                  {selectedFiles.map((file) => (
+                    <div
+                      key={`${file.name}-${file.size}`}
+                      className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/5 px-5 py-4"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="text-2xl">
+                          📄
+                        </div>
+
+                        <div>
+                          <p className="font-medium break-all">
+                            {file.name}
+                          </p>
+
+                          <p className="text-sm text-gray-400">
+                            Ready for secure transfer
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="text-sm text-cyan-300 font-semibold">
+                        {formatBytes(file.size)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+                    {/* Action Buttons */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
+            {!transferCompletedRef.current && (
+              <button
+                onClick={sendFile}
+                disabled={
+                  !selectedFiles.length ||
+                  isSending
+                }
+                className="px-6 py-5 rounded-3xl font-semibold text-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-2xl"
+              >
+                {isSending
+                  ? "Sending Securely..."
+                  : "Start Secure Transfer"}
+              </button>
+            )}
 
             <button
               onClick={resetSender}
-              className="bg-yellow-600 px-4 py-2 rounded w-full mt-3"
+              className="px-6 py-5 rounded-3xl font-semibold text-lg bg-gradient-to-r from-yellow-500 to-orange-500 hover:scale-[1.02] transition-all duration-300 shadow-2xl"
             >
-              New Transfer
-            </button> 
-
+              Create New Session
+            </button>
 
             {isSending && (
               <button
-                onClick={
-                  cancelTransfer
-                }
-                className="bg-red-600 px-4 py-2 rounded w-full"
+                onClick={cancelTransfer}
+                className="px-6 py-5 rounded-3xl font-semibold text-lg bg-gradient-to-r from-red-500 to-rose-600 hover:scale-[1.02] transition-all duration-300 shadow-2xl"
               >
                 Cancel Transfer
               </button>
             )}
-          </>
-        )}
+          </div>
+        </>
+      )}
+
+      {/* Footer */}
+      <div className="mt-12 border-t border-white/10 pt-8 text-center">
+        <p className="text-sm text-gray-400">
+          Secure browser-to-browser file transfer powered by WebRTC
+        </p>
+
+        <p className="text-xs text-white/50 mt-3">
+          Private • Fast • Verified • Multi-File Transfer
+        </p>
       </div>
+
     </div>
-  );
+  </div>
+);
+
 }

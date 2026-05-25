@@ -653,185 +653,437 @@ const handleServerMessage = async (
 };
 
 
-  return (
-  <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 bg-black text-white">
-    <h1 className="text-4xl font-bold">
-      Receiver
-    </h1>
+return (
+  <div className="min-h-screen relative overflow-hidden bg-black text-white">
+    {/* Background Glow */}
+    <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute top-[-120px] left-[-120px] h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl" />
+      <div className="absolute top-[20%] right-[-120px] h-96 w-96 rounded-full bg-purple-500/10 blur-3xl" />
+      <div className="absolute bottom-[-120px] left-[35%] h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
+    </div>
 
-    <div className="border border-gray-700 rounded-xl p-6 w-full max-w-md space-y-4">
-      <p>
-        <strong>Session:</strong>{" "}
-        {downloadUrl
-          ? "Completed"
-          : wsConnected
-          ? "Connected"
-          : "Disconnected"}
-      </p>
+    <div className="relative z-10 container mx-auto px-6 py-8">
 
-      <p>
-        <strong>State:</strong> {state}
-      </p>
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-10">
+        <div>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-xl mb-5">
+            <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-sm font-medium text-white/90">
+              Receiver Workspace Active
+            </span>
+          </div>
 
-      <p>
-        <strong>Status:</strong> {statusText}
-      </p>
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tight leading-tight">
+            Secure File
+            <span className="block bg-gradient-to-r from-cyan-300 via-white to-purple-300 bg-clip-text text-transparent">
+              Receiver Dashboard
+            </span>
+          </h1>
 
+          <p className="mt-5 text-lg text-gray-400 max-w-3xl leading-relaxed">
+            Receive files securely from connected devices using transfer codes,
+            QR pairing, live progress tracking, and integrity verification.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full md:w-auto">
+          <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl px-5 py-5 min-w-[180px]">
+            <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+              Session
+            </p>
+
+            <p
+              className={`text-lg font-semibold ${
+                downloadUrl
+                  ? "text-green-400"
+                  : wsConnected
+                  ? "text-cyan-300"
+                  : "text-red-400"
+              }`}
+            >
+              {downloadUrl
+                ? "Completed"
+                : wsConnected
+                ? "Connected"
+                : "Disconnected"}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl px-5 py-5 min-w-[180px]">
+            <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+              State
+            </p>
+
+            <p className="text-lg font-semibold text-purple-300">
+              {state}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl px-5 py-5 min-w-[180px]">
+            <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+              Status
+            </p>
+
+            <p className="text-sm font-medium text-white/90 leading-relaxed">
+              {statusText}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Connection Section */}
       {state !== "completed" && (
-        <>
-          <input
-            type="text"
-            value={transferId}
-            onChange={(e) =>
-              setTransferId(e.target.value)
-            }
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                connectAndJoin();
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+
+          {/* Connect Card */}
+          <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-2xl p-8 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+                  Pairing Session
+                </p>
+
+                <h2 className="text-2xl font-bold">
+                  Connect To Sender
+                </h2>
+              </div>
+
+              <div className="h-14 w-14 rounded-2xl bg-cyan-500/10 border border-cyan-400/20 flex items-center justify-center text-2xl">
+                🔗
+              </div>
+            </div>
+
+            <input
+              type="text"
+              value={transferId}
+              onChange={(e) =>
+                setTransferId(e.target.value)
               }
-            }}
-            placeholder="Enter transfer code"
-            className="w-full p-3 rounded bg-black border border-gray-600"
-          />
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  connectAndJoin();
+                }
+              }}
+              placeholder="Enter transfer code"
+              className="w-full px-5 py-5 rounded-2xl bg-black/40 border border-white/10 text-white placeholder:text-gray-500 outline-none focus:border-cyan-400 transition-all"
+            />
 
-          <button
-  disabled={
-    state === "connecting" ||
-    state === "joining" ||
-    state === "peer-connecting"
-  }
-  onClick={() => connectAndJoin()}
-            className="bg-green-600 px-4 py-3 rounded w-full"
-          >
-            Connect
-          </button>
+            <button
+              disabled={
+                state === "connecting" ||
+                state === "joining" ||
+                state === "peer-connecting"
+              }
+              onClick={() => connectAndJoin()}
+              className="w-full mt-5 px-6 py-5 rounded-2xl bg-gradient-to-r from-green-500 to-emerald-600 font-semibold text-lg hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Connect Securely
+            </button>
 
-          <button
-            onClick={startScanner}
-            className="bg-blue-600 px-4 py-3 rounded w-full"
-          >
-            Scan QR
-          </button>
-        </>
-      )}
+            <button
+              onClick={startScanner}
+              className="w-full mt-4 px-6 py-5 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-600 font-semibold text-lg hover:scale-[1.02] transition-all duration-300"
+            >
+              Scan QR Instead
+            </button>
+          </div>
 
-      {showScanner && state !== "completed" && (
-        <div className="mt-4 p-4 bg-gray-900 rounded-lg">
-          <div id="qr-reader"></div>
+          {/* Scanner Card */}
+          <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-2xl p-8 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+                  QR Scanner
+                </p>
 
-          <button
-            onClick={async () => {
-              await stopScanner();
-              setShowScanner(false);
-            }}
-            className="bg-red-600 px-4 py-2 rounded w-full mt-3"
-          >
-            Close Scanner
-          </button>
+                <h2 className="text-2xl font-bold">
+                  Quick Device Pairing
+                </h2>
+              </div>
+
+              <div className="h-14 w-14 rounded-2xl bg-purple-500/10 border border-purple-400/20 flex items-center justify-center text-2xl">
+                📷
+              </div>
+            </div>
+
+                        {showScanner ? (
+              <div className="rounded-3xl border border-white/10 bg-black/30 p-6">
+                <p className="text-sm text-gray-400 mb-5 text-center">
+                  Scan sender QR code to connect instantly
+                </p>
+
+                <div
+                  id="qr-reader"
+                  className="overflow-hidden rounded-2xl"
+                ></div>
+
+                <button
+                  onClick={async () => {
+                    await stopScanner();
+                    setShowScanner(false);
+                  }}
+                  className="w-full mt-5 px-6 py-4 rounded-2xl bg-gradient-to-r from-red-500 to-rose-600 font-semibold hover:scale-[1.02] transition-all duration-300"
+                >
+                  Close Scanner
+                </button>
+              </div>
+            ) : (
+              <div className="rounded-3xl border border-white/10 bg-black/30 p-10 flex flex-col items-center justify-center text-center min-h-[320px]">
+                <div className="text-6xl mb-5">
+                  📱
+                </div>
+
+                <h3 className="text-2xl font-bold mb-3">
+                  QR Pairing Ready
+                </h3>
+
+                <p className="text-gray-400 leading-relaxed max-w-md">
+                  Use the scanner to instantly pair with sender device without manually entering transfer code.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
+      {/* Incoming Transfer Dashboard */}
       {incomingFile && (
-        <div className="space-y-2">
-          <p>
-            Files: {incomingFile.totalFiles}
-          </p>
+        <div className="space-y-10">
 
-          <p>
-            Size:{" "}
-            {formatBytes(
-              incomingFile.totalTransferSize
-            )}{" "}
-            MB
-          </p>
+          {/* Analytics */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5">
+            <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
+              <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+                Files
+              </p>
 
-          <p>
-            Received:{" "}
-            {formatBytes(receivedBytes)} MB
-          </p>
-
-          <p>
-            Speed: {formatBytes(receiveSpeed)} MB/s
-          </p>
-
-          <p>ETA: {formatEta(etaSeconds)}</p>
-
-          <div className="mt-4">
-            <div className="flex justify-between text-sm mb-1">
-              <span>Progress</span>
-              <span>{receiveProgress.toFixed(1)}%</span>
+              <p className="text-3xl font-bold text-cyan-300">
+                {incomingFile.totalFiles}
+              </p>
             </div>
 
-            <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+            <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
+              <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+                Total Size
+              </p>
+
+              <p className="text-xl font-bold text-white">
+                {formatBytes(
+                  incomingFile.totalTransferSize
+                )} MB
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
+              <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+                Received
+              </p>
+
+              <p className="text-xl font-bold text-green-400">
+                {formatBytes(receivedBytes)} MB
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
+              <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+                Speed
+              </p>
+
+              <p className="text-xl font-bold text-purple-300">
+                {formatBytes(receiveSpeed)} MB/s
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl p-6">
+              <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+                ETA
+              </p>
+
+              <p className="text-xl font-bold text-yellow-300">
+                {formatEta(etaSeconds)}
+              </p>
+            </div>
+          </div>
+
+          {/* Progress + File List */}
+          <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-2xl p-8 shadow-2xl">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">
+                  Transfer Progress
+                </p>
+
+                <h2 className="text-2xl font-bold">
+                  Live Receive Tracking
+                </h2>
+              </div>
+
+              <div className="text-right">
+                <p className="text-sm text-gray-400">
+                  Completion
+                </p>
+
+                <p className="text-4xl font-bold text-cyan-300">
+                  {receiveProgress.toFixed(1)}%
+                </p>
+              </div>
+            </div>
+
+            <div className="w-full h-6 rounded-full bg-black/40 overflow-hidden border border-white/10 mb-8">
               <div
-                className="bg-blue-500 h-4 transition-all duration-300"
+                className="h-full rounded-full bg-gradient-to-r from-blue-400 via-cyan-500 to-purple-500 transition-all duration-300"
                 style={{
                   width: `${receiveProgress}%`,
                 }}
               />
             </div>
 
-            {state !== "completed" && (
-              <button
-                onClick={resetReceiver}
-                className="bg-red-600 px-4 py-3 rounded w-full mt-4"
-              >
-                Cancel Receive
-              </button>
-            )}
-          </div>
+            <div>
+              <p className="text-lg font-semibold mb-5">
+                Incoming Files
+              </p>
 
-          <div className="mt-4 max-h-40 overflow-y-auto rounded border p-2">
-            {incomingFile.files.map((file) => (
-              <div
-                key={`${file.fileName}-${file.fileSize}`}
-                className="text-sm"
-              >
-                {file.fileName} (
-                {formatBytes(file.fileSize)})
+              <div className="max-h-80 overflow-y-auto rounded-3xl border border-white/10 bg-black/30 p-5 space-y-3">
+                {incomingFile.files.map((file) => (
+                  <div
+                    key={`${file.fileName}-${file.fileSize}`}
+                    className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/5 px-5 py-4"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="text-2xl">
+                        📄
+                      </div>
+
+                      <div>
+                        <p className="font-medium break-all">
+                          {file.fileName}
+                        </p>
+
+                        <p className="text-sm text-gray-400">
+                          Receiving securely
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-cyan-300 font-semibold">
+                      {formatBytes(file.fileSize)}
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
 
-          {isVerified === true && (
-            <p className="text-green-400 font-semibold">
-              SHA-256 Verified ✅
-            </p>
-          )}
+                    {/* Verification + Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-          {isVerified === false && (
-            <p className="text-red-400 font-semibold">
-              File Integrity Failed ❌
-            </p>
-          )}
+            {/* Verification */}
+            <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-2xl p-8 shadow-2xl">
+              <p className="text-xs uppercase tracking-widest text-gray-400 mb-3">
+                Integrity Verification
+              </p>
 
-          {state === "completed" &&
-            downloadUrl && (
-              <a
-                href={downloadUrl}
-                download={
-                  incomingFile.totalFiles > 1
-                    ? "received-files.zip"
-                    : "received-file"
-                }
-                className="block text-center bg-blue-600 px-4 py-3 rounded"
-              >
-                {incomingFile.totalFiles > 1
-                  ? "Download ZIP"
-                  : "Download File"}
-              </a>
-            )}
+              <h2 className="text-2xl font-bold mb-6">
+                Security Validation
+              </h2>
 
-          {state === "completed" && (
-            <button
-              onClick={resetReceiver}
-              className="bg-green-600 px-4 py-3 rounded w-full"
-            >
-              Receive Another File
-            </button>
-          )}
+              {isVerified === true && (
+                <div className="rounded-2xl border border-green-400/20 bg-green-500/10 p-5">
+                  <p className="text-green-400 font-semibold text-lg">
+                    SHA-256 Verified ✅
+                  </p>
+
+                  <p className="text-sm text-gray-300 mt-2">
+                    File integrity verified successfully. Transfer is secure and untampered.
+                  </p>
+                </div>
+              )}
+
+              {isVerified === false && (
+                <div className="rounded-2xl border border-red-400/20 bg-red-500/10 p-5">
+                  <p className="text-red-400 font-semibold text-lg">
+                    File Integrity Failed ❌
+                  </p>
+
+                  <p className="text-sm text-gray-300 mt-2">
+                    Integrity mismatch detected. Download should not be trusted.
+                  </p>
+                </div>
+              )}
+
+              {isVerified === null && (
+                <div className="rounded-2xl border border-yellow-400/20 bg-yellow-500/10 p-5">
+                  <p className="text-yellow-300 font-semibold text-lg">
+                    Verification Pending
+                  </p>
+
+                  <p className="text-sm text-gray-300 mt-2">
+                    Waiting for transfer completion and integrity validation.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-2xl p-8 shadow-2xl">
+              <p className="text-xs uppercase tracking-widest text-gray-400 mb-3">
+                Transfer Actions
+              </p>
+
+              <h2 className="text-2xl font-bold mb-6">
+                Controls
+              </h2>
+
+              {state !== "completed" && (
+                <button
+                  onClick={resetReceiver}
+                  className="w-full px-6 py-5 rounded-2xl bg-gradient-to-r from-red-500 to-rose-600 font-semibold text-lg hover:scale-[1.02] transition-all duration-300"
+                >
+                  Cancel Receive
+                </button>
+              )}
+
+              {state === "completed" && downloadUrl && (
+                <a
+                  href={downloadUrl}
+                  download={
+                    incomingFile.totalFiles > 1
+                      ? "received-files.zip"
+                      : "received-file"
+                  }
+                  className="block w-full text-center px-6 py-5 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-600 font-semibold text-lg hover:scale-[1.02] transition-all duration-300"
+                >
+                  {incomingFile.totalFiles > 1
+                    ? "Download ZIP Package"
+                    : "Download Received File"}
+                </a>
+              )}
+
+              {state === "completed" && (
+                <button
+                  onClick={resetReceiver}
+                  className="w-full mt-5 px-6 py-5 rounded-2xl bg-gradient-to-r from-green-500 to-emerald-600 font-semibold text-lg hover:scale-[1.02] transition-all duration-300"
+                >
+                  Receive Another Transfer
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
+
+      {/* Footer */}
+      <div className="mt-14 border-t border-white/10 pt-8 text-center">
+        <p className="text-sm text-gray-400">
+          Secure browser-to-browser receiving powered by WebRTC
+        </p>
+
+        <p className="text-xs text-white/50 mt-3">
+          Private • Fast • Verified • Real-Time Transfer
+        </p>
+      </div>
+
     </div>
   </div>
 );
