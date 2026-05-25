@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/theme-toggle"
+// import { ThemeToggle } from "@/components/theme-toggle"
 import { ArrowRight } from "lucide-react"
 
 export default function HomePage() {
@@ -8,7 +8,7 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col gradient-bg">
       {/* Header */}
       <header className="container flex items-center justify-end p-4">
-        <ThemeToggle />
+        {/* <ThemeToggle /> */}
       </header>
 
       {/* Main content */}
