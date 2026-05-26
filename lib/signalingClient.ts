@@ -33,7 +33,7 @@ export class SignalingClient {
 
   private readonly HEARTBEAT_INTERVAL = 20000;
   private readonly PONG_TIMEOUT = 45000;
-  private readonly CONNECT_TIMEOUT = 10000;
+  private readonly CONNECT_TIMEOUT = 30000;
   private readonly MAX_RECONNECT_DELAY = 30000;
 
   connect(
@@ -349,7 +349,7 @@ export class SignalingClient {
     this.reconnectAttempts++;
 
     const delay = Math.min(
-      this.reconnectAttempts * 3000,
+      this.reconnectAttempts * 1000,
       this.MAX_RECONNECT_DELAY
     );
 
