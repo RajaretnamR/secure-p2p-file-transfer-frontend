@@ -4,14 +4,22 @@ import {
   isVersionedServerMessage,
 } from "@/lib/protocol";
 
-type MessageHandler = (message: VersionedServerMessage) => void;
-type StatusHandler = (connected: boolean) => void;
+type MessageHandler = (
+  message: VersionedServerMessage
+) => void;
+
+type StatusHandler = (
+  connected: boolean
+) => void;
 
 export class SignalingClient {
   private ws: WebSocket | null = null;
-  private heartbeatTimer: NodeJS.Timeout | null = null;
-  private reconnectTimer: NodeJS.Timeout | null = null;
-  private connectTimeout: NodeJS.Timeout | null = null;
+  private heartbeatTimer: NodeJS.Timeout | null =
+    null;
+  private reconnectTimer: NodeJS.Timeout | null =
+    null;
+  private connectTimeout: NodeJS.Timeout | null =
+    null;
 
   private messageHandler?: MessageHandler;
   private statusHandler?: StatusHandler;
@@ -33,24 +41,31 @@ export class SignalingClient {
     onStatusChange?: StatusHandler
   ): Promise<void> {
     if (this.destroyed) {
-      return Promise.reject(new Error("Client destroyed"));
+      return Promise.reject(
+        new Error("Client destroyed")
+      );
     }
 
     if (this.isConnecting) {
-      return Promise.reject(new Error("Already connecting"));
+      return Promise.reject(
+        new Error("Already connecting")
+      );
     }
 
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      console.log("[WS] Already connected");
+    if (
+      this.ws &&
+      this.ws.readyState === WebSocket.OPEN
+    ) {
       return Promise.resolve();
     }
 
-    const wsUrl = process.env.NEXT_PUBLIC_SIGNALING_WS_URL;
+    const wsUrl =
+      process.env.NEXT_PUBLIC_SIGNALING_WS_URL;
 
     if (!wsUrl) {
       return Promise.reject(
         new Error(
-          "NEXT_PUBLIC_SIGNALING_WS_URL is missing"
+          "NEXT_PUBLIC_SIGNALING_WS_URL missing"
         )
       );
     }
@@ -62,42 +77,37 @@ export class SignalingClient {
     this.manuallyClosed = false;
     this.isConnecting = true;
 
-    console.log("[WS] Connecting to:", wsUrl);
-
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(wsUrl);
       this.ws = ws;
 
       let settled = false;
 
-this.connectTimeout = setTimeout(() => {
-  if (
-    this.ws &&
-    this.ws.readyState === WebSocket.CONNECTING
-  ) {
-    console.error(
-      "[WS] Connection timeout after 10s"
-    );
+      this.connectTimeout = setTimeout(() => {
+        if (ws.readyState === WebSocket.CONNECTING) {
+          console.error(
+            "[WS] Connection timeout"
+          );
 
-    if (!settled) {
-      settled = true;
-      this.isConnecting = false;
-      reject(
-        new Error("WebSocket connection timeout")
-      );
-    }
+          if (!settled) {
+            settled = true;
+            this.isConnecting = false;
+            reject(
+              new Error(
+                "WebSocket connection timeout"
+              )
+            );
+          }
 
-    this.ws.close();
-  }
-}, this.CONNECT_TIMEOUT);
+          ws.close();
+        }
+      }, this.CONNECT_TIMEOUT);
 
       ws.onopen = () => {
-        if (this.destroyed) {
+        if (this.destroyed || this.ws !== ws) {
           ws.close();
           return;
         }
-
-        console.log("[WS] Connected");
 
         if (this.connectTimeout) {
           clearTimeout(this.connectTimeout);
@@ -108,7 +118,7 @@ this.connectTimeout = setTimeout(() => {
         this.reconnectAttempts = 0;
         this.lastPongTime = Date.now();
 
-        this.startHeartbeat();
+        this.startHeartbeat(ws);
 
         this.statusHandler?.(true);
 
@@ -118,58 +128,57 @@ this.connectTimeout = setTimeout(() => {
         }
       };
 
-ws.onmessage = (event) => {
-  if (this.destroyed) return;
+      ws.onmessage = (event) => {
+        if (
+          this.destroyed ||
+          this.ws !== ws
+        ) {
+          return;
+        }
 
-  try {
-    const parsed = JSON.parse(event.data);
+        try {
+          const parsed = JSON.parse(
+            event.data
+          );
 
-    const msgType = parsed?.type?.toLowerCase?.();
+          const msgType =
+            parsed?.type?.toLowerCase?.();
 
-    if (
-      msgType === "pong" ||
-      msgType === "heartbeat_ack" ||
-      msgType === "heartbeatack"
-    ) {
-      this.lastPongTime = Date.now();
-      console.log("[WS] Heartbeat ACK received");
-      return;
-    }
+          if (
+            msgType === "pong" ||
+            msgType === "heartbeat_ack" ||
+            msgType === "heartbeatack"
+          ) {
+            this.lastPongTime = Date.now();
+            return;
+          }
 
-    if (!isVersionedServerMessage(parsed)) {
-      console.warn(
-        "[WS] Invalid server message:",
-        parsed
-      );
-      return;
-    }
+          if (
+            !isVersionedServerMessage(parsed)
+          ) {
+            return;
+          }
 
-    this.messageHandler?.(parsed);
-  } catch (err) {
-    console.error("[WS] Parse error:", err);
-  }
-};
-
-      ws.onerror = (err) => {
-        console.error("[WS] Error:", err);
-
-        if (!settled) {
-          settled = true;
-          this.isConnecting = false;
-          reject(
-            new Error("WebSocket connection failed")
+          this.messageHandler?.(parsed);
+        } catch (err) {
+          console.error(
+            "[WS Parse Error]",
+            err
           );
         }
+      };
+
+      ws.onerror = (err) => {
+        console.error(
+          "[WS Error]",
+          err
+        );
       };
 
       ws.onclose = (event) => {
         console.warn(
           "[WS CLOSED]",
-          {
-            code: event.code,
-            reason: event.reason,
-            wasClean: event.wasClean,
-          }
+          event.code
         );
 
         if (this.connectTimeout) {
@@ -177,12 +186,27 @@ ws.onmessage = (event) => {
           this.connectTimeout = null;
         }
 
-        this.isConnecting = false;
         this.stopHeartbeat();
+
+        if (this.ws === ws) {
+          this.ws = null;
+        }
+
+        this.isConnecting = false;
 
         this.statusHandler?.(false);
 
-        this.ws = null;
+        if (
+          !settled &&
+          event.code !== 1000
+        ) {
+          settled = true;
+          reject(
+            new Error(
+              "WebSocket closed before connect"
+            )
+          );
+        }
 
         if (
           !this.manuallyClosed &&
@@ -195,18 +219,11 @@ ws.onmessage = (event) => {
   }
 
   send(message: ClientMessage) {
-    if (!this.ws) {
-      console.warn(
-        "[WS SEND FAILED] Socket does not exist"
-      );
-      return;
-    }
-
-    if (this.ws.readyState !== WebSocket.OPEN) {
-      console.warn(
-        "[WS SEND FAILED] Socket not open:",
-        this.ws.readyState
-      );
+    if (
+      !this.ws ||
+      this.ws.readyState !==
+        WebSocket.OPEN
+    ) {
       return;
     }
 
@@ -218,26 +235,27 @@ ws.onmessage = (event) => {
         })
       );
     } catch (err) {
-      console.error("[WS SEND ERROR]", err);
+      console.error(
+        "[WS SEND ERROR]",
+        err
+      );
     }
   }
 
   disconnect() {
-    console.log("[WS] Manual disconnect");
-
     this.manuallyClosed = true;
     this.cleanupSocket(true);
   }
 
   destroy() {
-    console.log("[WS] Destroy client");
-
     this.destroyed = true;
     this.manuallyClosed = true;
     this.cleanupSocket(true);
   }
 
-  private cleanupSocket(sendDisconnect: boolean) {
+  private cleanupSocket(
+    sendDisconnect: boolean
+  ) {
     this.stopHeartbeat();
 
     if (this.connectTimeout) {
@@ -250,49 +268,56 @@ ws.onmessage = (event) => {
       this.reconnectTimer = null;
     }
 
-    if (this.ws) {
-      try {
-        if (
-          sendDisconnect &&
-          this.ws.readyState === WebSocket.OPEN
-        ) {
-          this.send({
+    const socket = this.ws;
+
+    if (!socket) {
+      this.isConnecting = false;
+      return;
+    }
+
+    try {
+      if (
+        sendDisconnect &&
+        socket.readyState ===
+          WebSocket.OPEN
+      ) {
+        socket.send(
+          JSON.stringify({
+            version: "1",
             type: "disconnect",
-          });
-        }
-
-        this.ws.onopen = null;
-        this.ws.onmessage = null;
-        this.ws.onerror = null;
-        this.ws.onclose = null;
-
-        this.ws.close();
-      } catch (err) {
-        console.error(
-          "[WS CLEANUP ERROR]",
-          err
+          })
         );
       }
 
-      this.ws = null;
-    }
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
 
+      socket.close();
+    } catch {}
+
+    this.ws = null;
     this.isConnecting = false;
   }
 
-  private startHeartbeat() {
+  private startHeartbeat(
+    ws: WebSocket
+  ) {
     this.stopHeartbeat();
 
     this.heartbeatTimer = setInterval(() => {
-      const now = Date.now();
-      const silence = now - this.lastPongTime;
+      if (this.ws !== ws) {
+        return;
+      }
 
-      if (silence > this.PONG_TIMEOUT) {
-        console.error(
-          "[WS] Pong timeout. Closing socket."
-        );
+      const silence =
+        Date.now() - this.lastPongTime;
 
-        this.ws?.close();
+      if (
+        silence > this.PONG_TIMEOUT
+      ) {
+        ws.close();
         return;
       }
 
@@ -304,7 +329,9 @@ ws.onmessage = (event) => {
 
   private stopHeartbeat() {
     if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
+      clearInterval(
+        this.heartbeatTimer
+      );
       this.heartbeatTimer = null;
     }
   }
@@ -313,7 +340,8 @@ ws.onmessage = (event) => {
     if (
       this.reconnectTimer ||
       this.manuallyClosed ||
-      this.destroyed
+      this.destroyed ||
+      !this.messageHandler
     ) {
       return;
     }
@@ -321,33 +349,17 @@ ws.onmessage = (event) => {
     this.reconnectAttempts++;
 
     const delay = Math.min(
-      3000 * this.reconnectAttempts,
+      this.reconnectAttempts * 3000,
       this.MAX_RECONNECT_DELAY
-    );
-
-    console.log(
-      `[WS] Reconnecting in ${delay / 1000}s...`
     );
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
 
-      if (!this.messageHandler) {
-        console.warn(
-          "[WS] No message handler, skipping reconnect"
-        );
-        return;
-      }
-
       this.connect(
-        this.messageHandler,
+        this.messageHandler!,
         this.statusHandler
-      ).catch((err) => {
-        console.error(
-          "[WS] Reconnect failed:",
-          err
-        );
-
+      ).catch(() => {
         if (
           !this.manuallyClosed &&
           !this.destroyed
